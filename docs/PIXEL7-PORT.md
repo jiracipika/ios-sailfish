@@ -104,7 +104,7 @@ unverified — a hang needs a manual reset until then). Build:
 `shim/build-pixel7.sh STOCK_BOOT.img [PAYLOAD]` → `shim/out/pixel7/pixel7-boot.img` (NDK clang
 auto-detected under `/Volumes/HARD/android-sdk`; GNU/aarch64-elf prefixes also work). Host tests:
 `shim/host_fdt_test.c` (FDT walkers) and `tools/unpack_bootv2.py --selftest` (image round-trips).
-One constraint for later: the payload's `phys_base` must stay inside 0x80000000–0x8fffffff until
+First-boot procedure and outcome table: **docs/pixel7/FIRST-BOOT.md**. One constraint for later: the payload's `phys_base` must stay inside 0x80000000–0x8fffffff until
 mkpayload learns the gs201 reserved-memory map (ect/gsa/aoc/abl/ramoops all sit above 0x90000000).
 
 ## 5. Wi-Fi / Bluetooth (BCM4389)
