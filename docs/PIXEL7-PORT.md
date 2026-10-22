@@ -81,7 +81,7 @@ The genuinely reusable ~70% of the repo:
 
 | # | Milestone | Exit criteria |
 | --- | --- | --- |
-| M0 | CI green on this fork | `gh workflow run xnu.yml` → kernel artifact (upstream's current patches) |
+| M0 | Kernel builds locally on this Mac | `tools/local-toolchain.sh` green (Xcode 15.4 + KDK 13.5 in `research/`); `tools/xnu-build-local.sh` produces a kernel artifact (see docs/LOCAL-BUILD.md; GitHub Actions is the fallback path, not the plan) |
 | M1 | Device data pack | Stock `boot.img`/`dtbo` pulled + unpacked; gs201 FDT values extracted (memory, GIC, UFS reg, CPU MPIDRs, panel/touch nodes); `PIXEL7` dict drafted in `mkadt.py` (template in §8); iPhone10,3 device tree extracted from IPSW |
 | M2 | XNU early boot on the phone | `fastboot boot` → shim → XNU prints to the ABL framebuffer + pstore ring; GIC-600 IRQs + virtual timer alive; readable from Android (`pstore`) |
 | M3 | 8 cores + ACPM | SMP up (2 big + 2 mid + 4 little); ACPM mailbox talks; one rail/clock voted through it |

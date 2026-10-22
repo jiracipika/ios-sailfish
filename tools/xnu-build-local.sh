@@ -22,11 +22,18 @@ if [ ! -d "$WORK" ]; then
 	git -C "$WORK" checkout -q FETCH_HEAD
 fi
 # libfirehose_kernel is built for x86_64/arm64e with Xcode's default CPU (LSE,
-# LDAPR); the SWEET kernel needs plain arm64 for the Pixel 1 Kryo (ARMv8.0).
-# '$(inherited)' (single quotes in build.sh) keeps the xcconfig's -mkernel etc.
+# LDAPR); the SWEET kernel needs plain arm64 (the Pixel 1 Kryo is ARMv8.0).
+# PIXEL7=1 instead targets the gs201 cores (Cortex-X1/A78/A55, ARMv8.2+LSE)
+# with a generic armv8.2 march. '$(inherited)' (single quotes in build.sh)
+# keeps the xcconfig's -mkernel etc.
 git -C "$WORK" checkout -q -- build.sh
-sed -i '' 's/ARCHS="x86_64 arm64e" VALID_ARCHS="x86_64 arm64e"/ARCHS="arm64" VALID_ARCHS="arm64" OTHER_CFLAGS='"'"'$(inherited) -mcpu=kryo'"'"'/' "$WORK/build.sh"
-grep -q "OTHER_CFLAGS='\$(inherited) -mcpu=kryo'" "$WORK/build.sh"
+if [ "${PIXEL7:-0}" = 1 ]; then
+	sed -i '' 's/ARCHS="x86_64 arm64e" VALID_ARCHS="x86_64 arm64e"/ARCHS="arm64" VALID_ARCHS="arm64" OTHER_CFLAGS='"'"'$(inherited) -march=armv8.2-a+lse'"'"'/' "$WORK/build.sh"
+	grep -q "OTHER_CFLAGS='\$(inherited) -march=armv8.2-a+lse'" "$WORK/build.sh"
+else
+	sed -i '' 's/ARCHS="x86_64 arm64e" VALID_ARCHS="x86_64 arm64e"/ARCHS="arm64" VALID_ARCHS="arm64" OTHER_CFLAGS='"'"'$(inherited) -mcpu=kryo'"'"'/' "$WORK/build.sh"
+	grep -q "OTHER_CFLAGS='\$(inherited) -mcpu=kryo'" "$WORK/build.sh"
+fi
 # Our patches next to blacktop's (12.5-14.3 use the top-level patches dir).
 rm -f "$WORK"/patches/0[0-9][0-9][0-9]-*
 cp "$REPO"/xnu/patches/*.patch "$REPO"/xnu/patches/*.sh "$WORK/patches/"
@@ -41,10 +48,14 @@ cd "$WORK"
 # build.sh skips the kernel if this exists (and we would copy a stale one):
 # remove it, make still rebuilds only what changed in build/xnu.obj.
 rm -rf build/xnu.obj/kernel.development.sweet* fakeroot/System/Library/Kernels/kernel.development.sweet*
+# build.sh needs bash 5 (pipefail + set -u arrays); fall back to the
+# research/bin copy built by tools/local-toolchain.sh when homebrew is absent.
+BASH5=${BASH5:-/opt/homebrew/bin/bash}
+[ -x "$BASH5" ] || BASH5=$REPO/research/bin/bash
 env PATH="$REPO/research/bin:/opt/homebrew/bin:$PATH" \
 	DEVELOPER_DIR="$XCODE/Contents/Developer" KDKROOT="$KDK" \
 	MACOS_VERSION=13.5 KERNEL_CONFIG=DEVELOPMENT MACHINE_CONFIG=SWEET \
-	/opt/homebrew/bin/bash build.sh 2>&1 | tee "$OUT/build.log"
+	"$BASH5" build.sh 2>&1 | tee "$OUT/build.log"
 
 # build.sh only warns when a patch does not apply: refuse a stale kernel.
 if grep -E 'Skipping patch .*/0[0-9]{3}-' "$OUT/build.log"; then
