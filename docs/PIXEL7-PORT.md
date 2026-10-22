@@ -156,15 +156,25 @@ Values come from the stock DTB (M1 extraction; every address is in Google's publ
 guess from memory):
 
 ```python
-# tools/mkadt.py  (draft — fill ONLY from device/google/pantah + your live FDT)
+# tools/mkadt.py  (gs201 values from Google's DTS, confirmed 2026-10-22 — see
+# docs/pixel7/GS201-PLATFORM.md; only DRAM size + live fb come from the M1 pack)
 PIXEL7 = dict(
-    phys_base=...,        # lowest usable DRAM (skip HYP/S2MPU carve-outs)
-    mem_size=...,         # from /memory + reserved-memory of stock FDT
-    gicd=..., gicr=..., gicr_stride=0x10000,   # GIC-600 (verify stride!)
-    vtimer=...,           # PPI numbering from boot probe
-    fb=..., fb_size=..., fb_w=1080, fb_h=2400, fb_bpp=32,  # ABL splash scanout
-    ufs=..., ufs_size=...,                     # ufshc reg (exynos)
-    cpus=[(mpidr, cluster, max_hz) × 8],        # 2×X1, 2×A78, 4×A55 — MPIDRs from FDT
+    phys_base=0x80000000,  # lowest usable DRAM; keep payload <= 0x8fffffff
+                           # (ect/gsa/aoc/tpu/gxp/abl/ramoops all sit >= 0x90000000)
+    mem_size=...,          # from /memory of the stock FDT (M1)
+    gicd=0x10400000, gicr=0x10440000, gicr_stride=0x20000,  # GICv3/GIC-600,
+                           # 2 GICR frames per core on this GIC — verify at boot
+    vtimer_freq=24576000,  # 24.576 MHz arch timer (gs201.dtsi clock-frequency)
+    fb=..., fb_size=..., fb_w=1080, fb_h=2400, fb_bpp=32,  # ABL splash, carved
+                           # at boot: shim/fdt.c finds it (framebuffer|splash node)
+    ufs=0x14700000, ufs_size=0x200,   # exynos UFS HCI (+ vendor 0x14701100,
+                                      # UNIPRO 0x14780000 — patch will want all three)
+    cpus=[                  # gs201-cpu.dtsi: MPIDR aff0, cluster, capacity
+        (0x000, "little", 1800000), (0x100, "little", 1800000),
+        (0x200, "little", 1800000), (0x300, "little", 1800000),
+        (0x400, "mid",    2503000), (0x500, "mid",    2503000),
+        (0x600, "big",    2850000), (0x700, "big",    2850000),
+    ],                      # max_hz = DVFS ceilings from cpufreq tables (verify)
 )
 ```
 
