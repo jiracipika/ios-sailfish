@@ -4,6 +4,8 @@
 
 This project ports Apple's open-source XNU kernel (xnu-8796, the iOS 16 generation) to the first Google Pixel and runs the **unmodified iOS 16.7.16 (20H392) userland of the iPhone 8** on it: launchd, the system daemons, backboardd, SpringBoard and the stock apps. It is a fork of [dipa-studio/ios-sweet](https://github.com/dipa-studio/ios-sweet), which brought the same kernel up on a Redmi Note 10 Pro; that history is kept, and the Pixel work starts at the commit "tools: granule-probe, 16K page check for other phones".
 
+A port to the **Google Pixel 7** (`panther`, Tensor gs201) is planned in this fork: see **[docs/PIXEL7-PORT.md](docs/PIXEL7-PORT.md)** and `tools/pixel7-extract.sh`.
+
 > Experimental, not a usable phone OS. Many things are missing or stubbed (see below) and Apple's security model is mostly switched off. It installs into the `userdata` partition and so **erases Android's user data**.
 
 ## Status (2026-10-21)
