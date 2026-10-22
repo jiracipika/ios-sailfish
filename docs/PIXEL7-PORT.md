@@ -34,7 +34,7 @@ both upstream ports actually progressed.
 - **Google publishes everything** (GPL): `android.googlesource.com/kernel/gs` (pantah branch,
   android13-5.10 + vendor modules) and `device/google/pantah` (DTS). Most bring-up info is *reading
   published source*, not black-box RE. This is a huge advantage over both upstream targets.
-- GKI boot images (boot v4): `tools/unpack_bootv2.py` may need v4 support — small tooling item.
+- GKI boot images (boot v4): `tools/unpack_bootv2.py` handles v0–v4 + vendor_boot v4 (self-tested, `--selftest`).
 
 ## 2. Hardware delta: msm8996 (Pixel 1) → gs201 (Pixel 7)
 

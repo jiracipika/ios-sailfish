@@ -39,8 +39,11 @@ if [ "${DEV:-}" = yes ]; then
             echo "   FAILED: $part (need root or recovery shell) — pull it manually"
         fi
     done
-    echo "   next: python3 tools/unpack_bootv2.py backup/boot.img dtb/boot_unpacked"
-    echo "   (boot v4 note: Pixel 7 images may need a v4-aware unpacker — see docs §1)"
+    if [ -f backup/boot.img ]; then
+        python3 tools/unpack_bootv2.py backup/boot.img dtb/boot_unpacked \
+            $( [ -f backup/vendor_boot.img ] && echo backup/vendor_boot.img ) \
+            && echo "   unpacked: dtb/boot_unpacked (kernel, dtb, vendor ramdisk fragments, bootconfig)"
+    fi
 else
     echo "   skipped (no device)"
 fi
