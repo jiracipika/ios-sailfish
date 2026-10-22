@@ -22,8 +22,9 @@ Both need your Apple ID at <https://developer.apple.com/download/all/>:
 2. **Kernel Debug Kit 13.5 build 22G74** (`KDK_13.5_22G74.dmg`) — search "KDK 13.5"
 
 Drop both in `research/incoming/` **or** `/Volumes/HARD/ios-sailfish-incoming/`
-(HARD recommended: the xip is 7.7 GB and ADATA has ~23 GB free; the *expanded*
-Xcode (~13 GB) goes to ADATA either way, so delete the xip after expansion).
+(keep the repo on a roomy volume: the xip is 7.7 GB and the *expanded* Xcode
+another ~13 GB; delete the xip after expansion). Note: the ADATA SSD dropped
+off the bus 2026-10-22 — the canonical clone lives on /Volumes/HARD for now.
 
 Then:
 
@@ -47,8 +48,8 @@ instruction target.
 
 ## Troubleshooting
 
-- `xip` expansion fails on disk space: free ADATA first (Xcode + build tree ≈
-  17 GB steady-state).
+- `xip` expansion fails on disk space: the volume holding `research/` needs
+  ~17 GB steady-state (Xcode + build tree).
 - A patch refuses to apply after you edit `xnu/patches/`: the script rebuilds
   from pristine xnu each run, so just re-run; it refuses to ship a kernel when
   any patch was skipped (grep for `Skipping patch` in the log).
