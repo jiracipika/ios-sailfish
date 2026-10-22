@@ -95,6 +95,18 @@ M2–M4 is the scale of work upstream spent ~90 patches and many months on for t
 expect the same order of magnitude. Everything is `fastboot boot`-only — stock Android stays
 flashed and boots normally otherwise.
 
+The M2 shim exists (differs from the Pixel 1 flow in three ways): the payload rides as the
+boot.img **ramdisk** (ABL patches `/chosen linux,initrd-start/end`, no LK `_end` append), the
+splash framebuffer + ramoops console zone are **discovered from the DTB** (`shim/fdt.c`
+`fdt_find_reserved` — ABL adds the framebuffer node at boot; gs201 ramoops is `ramoops_mem@fd3ff000`,
+console-size 2 MiB first, fallback hardcoded), and there are no MMIO pokes (gs201 watchdog map
+unverified — a hang needs a manual reset until then). Build:
+`shim/build-pixel7.sh STOCK_BOOT.img [PAYLOAD]` → `shim/out/pixel7/pixel7-boot.img` (NDK clang
+auto-detected under `/Volumes/HARD/android-sdk`; GNU/aarch64-elf prefixes also work). Host tests:
+`shim/host_fdt_test.c` (FDT walkers) and `tools/unpack_bootv2.py --selftest` (image round-trips).
+One constraint for later: the payload's `phys_base` must stay inside 0x80000000–0x8fffffff until
+mkpayload learns the gs201 reserved-memory map (ect/gsa/aoc/abl/ramoops all sit above 0x90000000).
+
 ## 5. Wi-Fi / Bluetooth (BCM4389)
 
 - The combo sits on PCIe (`wlan` under `pcie0` in the gs201 DTS). Google's kernel ships the Android

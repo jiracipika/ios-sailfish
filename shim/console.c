@@ -11,12 +11,32 @@
 #define MARGIN		24
 #define LABEL_COLS	8
 
+#ifdef PIXEL7
+volatile uint32_t *con_fb;
+static int con_ok;		/* 0 until con_init(): the compile-time FB_BASE is a
+				 * Qualcomm address and would be foreign memory on gs201 */
+void con_init(uint64_t pa)
+{
+	con_fb = (volatile uint32_t *)(uintptr_t)pa;
+	con_ok = 1;
+}
+#else
 volatile uint32_t *con_fb = (volatile uint32_t *)FB_BASE;
+static int con_ok = 1;
+#endif
+
+uint64_t con_fb_pa(void)
+{
+	return con_ok ? (uint64_t)(uintptr_t)con_fb : 0;
+}
+
 static uint32_t con_bg;
 static int row;
 
 static void put_px(int x, int y, uint32_t c)
 {
+	if (!con_ok)
+		return;
 #if FB_BPP == 3
 	/* MDP unpack pattern 0x00020001: bytes B, G, R */
 	volatile uint8_t *p = (volatile uint8_t *)con_fb + y * FB_STRIDE + x * 3;
@@ -54,6 +74,11 @@ void con_flush(void)
 
 void con_clear(uint32_t bg)
 {
+	if (!con_ok) {
+		con_bg = bg;
+		row = 0;
+		return;
+	}
 	for (int y = 0; y < FB_H; y++)
 		for (int x = 0; x < FB_W; x++)
 			put_px(x, y, bg);

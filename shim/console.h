@@ -22,6 +22,11 @@
 
 extern volatile uint32_t *con_fb;
 
+/* PIXEL7: con_fb is only valid after con_init(found address); draws no-op before. */
+void con_init(uint64_t pa);
+/* Address boot_args Video should carry (0 = no display). */
+uint64_t con_fb_pa(void);
+
 void con_clear(uint32_t bg);
 void con_flush(void);	/* show what was drawn (command-mode panels) */
 void con_skip(void);

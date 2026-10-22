@@ -11,6 +11,10 @@ bootconfig):
 Layouts per AOSP system/tools/mkbootimg include/bootimg/bootimg.h. Self-test
 (synthetic images, no device needed):
     tools/unpack_bootv2.py --selftest TMPDIR
+
+Repack a shim into the stock image (kernel swap, optional ramdisk swap -- the
+SWEETXNU payload rides as the ramdisk; a v4 boot signature is dropped):
+    tools/unpack_bootv2.py --repack STOCK.img shim/Image OUT.img [PAYLOAD]
 """
 import struct, sys, os
 
@@ -109,50 +113,56 @@ def write_info(out, info, tag=''):
     print(open(path).read())
 
 
-def repack_boot(src, kernel_file, dst):
-    """Replace the kernel inside a boot image (v0-v4), keeping everything else.
-    For v4 the boot signature is dropped (allowed with an unlocked bootloader).
-    This is how a shim kernel gets booted on a Pixel 7: fastboot boot a repacked
-    stock image, nothing is flashed."""
+def repack_boot(src, kernel_file, dst, ramdisk_file=None):
+    """Replace the kernel (and optionally the ramdisk) inside a boot image
+    (v0-v4), keeping everything else. For v4 the boot signature is dropped
+    (allowed with an unlocked bootloader). This is how a shim kernel gets
+    booted on a Pixel 7: fastboot boot a repacked stock image, nothing is
+    flashed; the SWEETXNU payload rides as the ramdisk (ABL exposes it to
+    the shim via /chosen linux,initrd-start/end)."""
     b = bytearray(open(src, 'rb').read())
     k = open(kernel_file, 'rb').read()
+    r = open(ramdisk_file, 'rb').read() if ramdisk_file else None
     ver = struct.unpack_from('<I', b, 40)[0]
     if ver <= 2:
         ps, = struct.unpack_from('<I', b, 36)
-        ks, = struct.unpack_from('<I', b, 8)            # old kernel size
+        ks, = struct.unpack_from('<I', b, 8)
+        # sections after the kernel: ramdisk@16, second@24, [recovery_dtbo@1632, dtb@1648]
+        sizes = [struct.unpack_from('<I', b, 16)[0],
+                 struct.unpack_from('<I', b, 24)[0],
+                 struct.unpack_from('<I', b, 1632)[0] if ver >= 1 else 0,
+                 struct.unpack_from('<I', b, 1648)[0] if ver >= 2 else 0]
         struct.pack_into('<I', b, 8, len(k))            # new kernel size
-        rnd = lambda n: (n + ps - 1) // ps * ps
-        rs, = struct.unpack_from('<I', b, 16)
-        ss, = struct.unpack_from('<I', b, 24)
-        rds = struct.unpack_from('<I', b, 1632)[0] if ver >= 1 else 0
-        ds = struct.unpack_from('<I', b, 1648)[0] if ver >= 2 else 0
-        # layout: header page, kernel, ramdisk, second, [recovery_dtbo, dtb]
-        layout = [(ps, ks)]
-        o = ps + rnd(ks)
-        for sz in (rs, ss, rds, ds):
-            if sz:
-                layout.append((o, sz)); o += rnd(sz)
-        out = bytearray(b[:ps])                          # patched header page
-        out += k + b'\0' * (-len(k) % ps)
-        for o, sz in layout[1:]:
-            out += b[o:o+sz] + b'\0' * (-sz % ps)
+        if r is not None:
+            struct.pack_into('<I', b, 16, len(r))       # new ramdisk size
     elif ver in (3, 4):
         ps = 4096
-        ks, rs = struct.unpack_from('<II', b, 8)
+        ks, = struct.unpack_from('<I', b, 8)
+        sizes = [struct.unpack_from('<I', b, 12)[0]]    # ramdisk
         struct.pack_into('<I', b, 8, len(k))            # new kernel size
-        rnd = lambda n: (n + ps - 1) // ps * ps
+        if r is not None:
+            struct.pack_into('<I', b, 12, len(r))       # new ramdisk size
         if ver == 4:
             struct.pack_into('<I', b, 1580, 0)          # drop the boot signature
-        out = bytearray(b[:ps])                          # patched header page
-        out += k + b'\0' * (-len(k) % ps)
-        o_ram = ps + rnd(ks)                            # ramdisk follows old kernel
-        if rs:
-            out += b[o_ram:o_ram+rs] + b'\0' * (-rs % ps)
-        # v3 ends here; a v4 signature section is intentionally not copied
     else:
         raise SystemExit(f'unsupported boot header version {ver}')
+
+    rnd = lambda n: (n + ps - 1) // ps * ps
+    in_offs, o = [], ps + rnd(ks)                       # section input offsets, OLD sizes
+    for sz in sizes:
+        in_offs.append(o)
+        if sz:
+            o += rnd(sz)
+    out = bytearray(b[:ps])                             # patched header page
+    out += k + b'\0' * (-len(k) % ps)
+    for i, (io, sz) in enumerate(zip(in_offs, sizes)):
+        if sz:
+            data = r if (i == 0 and r is not None) else b[io:io + sz]
+            out += data + b'\0' * (-len(data) % ps)
+    # v3 ends here; a v4 signature section is intentionally not copied
     open(dst, 'wb').write(bytes(out))
-    print(f'{dst}: kernel {ks} -> {len(k)} bytes (header v{ver})')
+    print(f'{dst}: kernel {ks} -> {len(k)}, ramdisk {sizes[0]} -> '
+          f'{len(r) if r is not None else sizes[0]} bytes (header v{ver})')
 
 
 # ---- self-test: synthetic v2 / v4 boot + v4 vendor_boot round-trips ----
@@ -232,6 +242,19 @@ def selftest(tmp):
     assert open(tmp + '/out2r/kernel', 'rb').read() == b'N' * 500
     assert open(tmp + '/out2r/dtb', 'rb').read() == b'T' * 512
 
+    # repack: swap the ramdisk too (the Pixel 7 SWEETXNU payload path)
+    open(tmp + '/newramdisk', 'wb').write(b'P' * 1234)
+    run(['--repack', p4, tmp + '/newkernel', tmp + '/boot_v4_rd.img', tmp + '/newramdisk'])
+    run([tmp + '/boot_v4_rd.img', tmp + '/out4rd'])
+    assert open(tmp + '/out4rd/kernel', 'rb').read() == b'N' * 500
+    assert open(tmp + '/out4rd/ramdisk', 'rb').read() == b'P' * 1234
+    assert 'ramdisk_size: 1234' in open(tmp + '/out4rd/header.txt').read()
+    run(['--repack', p2, tmp + '/newkernel', tmp + '/boot_v2_rd.img', tmp + '/newramdisk'])
+    run([tmp + '/boot_v2_rd.img', tmp + '/out2rd'])
+    assert open(tmp + '/out2rd/ramdisk', 'rb').read() == b'P' * 1234
+    assert open(tmp + '/out2rd/second', 'rb').read() == b'S' * 64
+    assert open(tmp + '/out2rd/dtb', 'rb').read() == b'T' * 512
+
     print('SELFTEST OK: v2 boot, v4 boot, v4 vendor_boot and repack round-trips verified')
 
 
@@ -240,7 +263,8 @@ def main():
         selftest(sys.argv[2] if len(sys.argv) > 2 else '/tmp/boot-unpack-selftest')
         return
     if len(sys.argv) >= 5 and sys.argv[1] == '--repack':
-        repack_boot(sys.argv[2], sys.argv[3], sys.argv[4])
+        repack_boot(sys.argv[2], sys.argv[3], sys.argv[4],
+                    sys.argv[5] if len(sys.argv) > 5 else None)
         return
     src, out = sys.argv[1], sys.argv[2]
     os.makedirs(out, exist_ok=True)

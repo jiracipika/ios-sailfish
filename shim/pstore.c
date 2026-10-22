@@ -7,28 +7,41 @@
  */
 #include "pstore.h"
 
-#define PRZ_BASE	0x83540000UL
+#define PRZ1_BASE	0x83540000UL	/* Pixel 1 live-DT ramoops console zone */
+
+static uintptr_t prz_base;
 #define PRZ_DATA_MAX	(0x80000UL - 12)
 #define PRZ_SIG		0x43474244U	/* "DBGC" */
 
-#define PRZ_W(off)	(*(volatile uint32_t *)(PRZ_BASE + (off)))
+#define PRZ_W(off)	(*(volatile uint32_t *)(prz_base + (off)))
 #define PRZ_SIG_	PRZ_W(0)
 #define PRZ_START	PRZ_W(4)	/* write position; == size until the ring wraps */
 #define PRZ_SIZE	PRZ_W(8)
 
 static uint32_t pos;
 
-void plog_init(void)
+/* A base of 0 disables logging (Pixel 7 before the ramoops region is found). */
+void plog_init_at(uintptr_t base)
 {
+	prz_base = base;
 	pos = 0;
+	if (!base)
+		return;
 	PRZ_START = 0;
 	PRZ_SIZE = 0;
 	PRZ_SIG_ = PRZ_SIG;
 }
 
+void plog_init(void)
+{
+	plog_init_at(PRZ1_BASE);
+}
+
 /* Keep what an earlier stage logged (valid record), else start fresh. */
 void plog_append(void)
 {
+	if (!prz_base)
+		return;
 	if (PRZ_SIG_ == PRZ_SIG && PRZ_SIZE == PRZ_START && PRZ_SIZE <= PRZ_DATA_MAX)
 		pos = PRZ_SIZE;
 	else
@@ -37,9 +50,9 @@ void plog_append(void)
 
 static void plog_putc(char c)
 {
-	if (pos >= PRZ_DATA_MAX)
+	if (!prz_base || pos >= PRZ_DATA_MAX)
 		return;
-	*(volatile uint8_t *)(PRZ_BASE + 12 + pos++) = c;
+	*(volatile uint8_t *)(prz_base + 12 + pos++) = c;
 	PRZ_START = pos;
 	PRZ_SIZE = pos;
 }

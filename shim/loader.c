@@ -128,8 +128,8 @@ const char *loader_boot_rd(uint64_t rd_start, uint64_t rd_end)
 	ba->physBase = p->phys_base;
 	ba->memSize = p->mem_size;
 	ba->topOfKernelData = top;
-	ba->Video.v_baseAddr = FB_BASE;
-	ba->Video.v_display = 1;
+	ba->Video.v_baseAddr = con_fb_pa();
+	ba->Video.v_display = con_fb_pa() ? 1 : 0;
 	ba->Video.v_rowBytes = FB_STRIDE;
 	ba->Video.v_width = FB_W;
 	ba->Video.v_height = FB_H;
